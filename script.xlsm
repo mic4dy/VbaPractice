@@ -1,0 +1,137 @@
+REM  *****  BASIC  *****
+Option VBASupport 1
+
+Sub Main
+	' マクロの実行に伴う警告の表示を無効化
+	Application.DisplayAlerts = False
+	
+	' 出張者リストExcelファイル（WB）のパス
+	' B1セルに記述されていることを期待している
+	dim bussinessTravelersFilePath as String
+	bussinessTravelersFilePath = ThisWorkBook.WorkSheets(1).Cells(1, 2)
+	
+	' 出張者リストのWBオブジェクト
+	dim bussinessTravelersWb as Workbook
+	Set bussinessTravelersWb = setWorkbook(bussinessTravelersFilePath)
+	
+	' 食堂利用者リストWBのパス
+	dim cafeteriaUsersFilePath as String
+	cafeteriaUsersFilePath = ThisWorkBook.WorkSheets(1).Cells(2, 2)
+	
+	' 食堂利用者リストのWBオブジェクト
+	dim cafeteriaUsersWb as Workbook
+	Set cafeteriaUsersWb = setWorkbook(cafeteriaUsersFilePath)
+	
+	' 出張者の名前を格納する配列
+	' 本来配列内で定義するべきだが、VBAの特性上変数がすべて事前定義されるためここに記述
+	dim travelerNames(0) as String
+	
+	' 各日付のループ
+	' 月曜～土曜までの6回
+	' 食堂利用者リストの値をループ取得する
+	dim i as Integer
+	For i = 0 To 5
+		' 日付が格納されている行番号
+		dim rowCount as String
+		rowCount = CStr(5 + (6 * i))
+		
+		' 日付の取得
+		dim targetDay as Date
+		targetDay = cafeteriaUsersWb.Worksheets(1).Cells(rowCount, 1).value
+		
+		' 名前リストの初期化
+		Redim travelerNames(0)
+		
+		' 各部屋のループ
+		' 201～208までの8回
+		' 取得した日付の各部屋の利用者をループ取得する
+		dim j as Integer
+		For j = 0 To 7
+			' 参照するセル番号
+			dim cellAddress as String
+			cellAddress = column + CStr(4 + Day(targetDay))
+			
+			' 行番号の指定
+			' 4: 日付が開始されるまでの不要な行数
+			dim targetRowNumber as Integer
+			targetRowNumber = 4 + Day(targetDay)
+			
+			' 列番号の指定
+			' 3: 最初に取得する列番号
+			' 5: 次に取得する列番号までの距離
+			dim targetColumnNumber as Integer
+			targetColumnNumber = 3 + (5 * j)
+			
+			' 参照したセルの値
+			dim cellValue as String
+			cellValue = bussinessTravelersWb.Worksheets(1).Cells(targetRowNumber, targetColumnNumber).value
+			
+			
+			' 値が空の場合は処理をスキップ
+			IF cellValue = "" Then
+				GoTo Continue
+    		End IF
+    		
+    		' 半角または全角の空白までの文字列（基本苗字）を抽出
+    		cellValue = Split(cellValue, " ")(0)
+			cellValue = Split(cellValue, "　")(0)
+    		
+    		' 配列を1大きいサイズに再定義
+			Redim Preserve travelerNames(UBound(travelerNames) + 1)
+			
+			' 取得した値を格納
+			travelerNames(UBound(travelerNames) - 1) = Split(cellValue, " ")(0)
+			
+		Continue:
+		Next j
+		
+		' その日付の名前一覧のループ
+		dim k as Integer
+		For k = 0 To UBound(travelerNames) - 1
+			dim travelerName as String
+			travelerName = travelerNames(k)
+			
+			dim l as Integer
+			For l = 0 To 2
+				' 名前を書き込む行番号の指定
+				' 3          : 最初に入力する行番号までの不要なヘッダ行数
+				' 6          : 次の日付までの行数
+				' k + 1 Mod 6: kは何個目かの名前をさし0始まり、k + 1は1始まりの何個目かをさす
+				'              Mod 6 することで5個目まではそのままの行数をさし、6個目以降は0から数えなおす
+				'              -> 同じタイミングで列番号をずらすことで二列目に入力する
+				dim insertRowNumber as Integer
+				insertRowNumber = 3 + (6 * i) + (k + 1 Mod 6)
+				
+				' 名前を書き込む列番号の指定
+				dim insertColumnNumber as Integer
+				insertColumnNumber = 2 + (3 * l)
+				IF k > 5 Then
+					insertColumnNumber = insertColumnNumber + 1
+				End IF
+				
+				' 指定されたセルに名前を入力
+				cafeteriaUsersWb.Worksheets(1).Cells(insertRowNumber, insertColumnNumber).value = travelerName
+			Next l
+		Next k
+	Next i
+End Sub
+
+' WBの取得
+' Args
+' 	- filePath: 読み込むWBのパス
+' Return
+'	WBのオブジェクト
+Function setWorkbook(filePath as String) as Workbook
+	' `filePath` に定義されたパスにファイルの存在確認
+    If Dir(filePath) <> "" Then
+    	' 存在する場合はファイルを開く
+    	' -> 後述で `ActiveWorkbook` として読み込むため
+        Workbooks.Open filePath, ReadOnly := True
+    Else
+    	' 存在しない場合はダイアログを表示し終了
+        MsgBox "ファイルが存在しません。ファイルパスを確認してください。"&filePath
+        Exit Function
+    End If
+
+    setWorkbook = ActiveWorkbook
+End Function
